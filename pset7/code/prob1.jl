@@ -3,7 +3,7 @@ using Tables
 using LinearAlgebra
 using DataFrames, DataFramesMeta
 using StatsBase
-using Plots, StatsPlots
+using Plots, StatsPlots, Plots.PlotMeasures
 using LaTeXStrings
 
 include("kernals.jl")
@@ -26,12 +26,11 @@ engel.share = engel.foodexp ./ engel.income
 # with histograms
 f_loginc = kdensity(engel.loginc)
 plot(engel.loginc, seriestype=:histogram, legend = false, color = :goldenrod2,
-    ylabel = "Counts")
+    ylabel = "Counts", rightmargin = 1.5Plots.cm)
 plot!(twinx(), f_loginc, 5, 9, legend = false, color = :deepskyblue3, linewidth = 3,
     ylabel = "Density")
 plot!(xlabel = "Log income")
 savefig("../output/kdensity_loginc_normal.pdf")
-
 
 # Question 2: Kernal regression of share food expenditures on log income
 # Cross-validation grid search
@@ -42,7 +41,7 @@ CV_argmin = findmax(-CV_grid)
 h_cv = hgrid[CV_argmin[2]]
 CV_min = -CV_argmin[1]
 
-println("The optimal bandwidth is $h_cv.")
+println("The optimal bandwidth for kernal regression is $h_cv.")
 plot(hgrid, CV_grid, color = :deepskyblue3, linewidth = 3)
 plot!([h_cv], [CV_min], seriestype = :scatter, markersize = 5, color = :goldenrod2,
     annotations = (h_cv + 0.01, CV_min + 0.0001, L"h_{CV} = 0.28"),
