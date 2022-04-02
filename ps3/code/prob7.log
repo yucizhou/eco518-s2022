@@ -1,0 +1,245 @@
+
+  ___  ____  ____  ____  ____ ©
+ /__    /   ____/   /   ____/      17.0
+___/   /   /___/   /   /___/       SE—Standard Edition
+
+ Statistics and Data Science       Copyright 1985-2021 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-STATA-PC        https://www.stata.com
+                                   979-696-4600        stata@stata.com
+
+Stata license: Unlimited-user , expiring 19 Feb 2023
+Serial number: 401709301093
+  Licensed to: Yuci Zhou
+               Princeton University
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. Maximum number of variables is set to 5,000; see help set_maxvar.
+
+. do "prob7.do" 
+
+. clear all
+
+. 
+. program main
+  1.         prep_data
+  2.         parametric_lrv, lags(12)
+  3.         pop_mean_ci, lrv(`=r(w2)')
+  4.         newey_west
+  5.         pop_mean_ci, lrv(`=r(w2)')
+  6.         prew_ar1
+  7.         pop_mean_ci, lrv(`=r(w2)')
+  8.         pergram_lwr, first(10)
+  9.         pop_mean_ci, lrv(`=r(w2)')
+ 10.         pergram_lwr, first(3)
+ 11.         pop_mean_ci_t, lrv(`=r(w2)') n(3)
+ 12. end
+
+. 
+. program prep_data
+  1.         import delimited ../raw/IRateSpread.csv, clear
+  2.         gen date_num = date(date, "MDY")
+  3.         format date_num %tdCCYY-NN-DD
+  4.         gen t = mofd(date_num)
+  5.         format t %tmCCYY-NN
+  6.         tsset t
+  7.         rename t10y3m y
+  8.         sum y
+  9.         local mean = r(mean)
+ 10.         gen y_dm = y - `mean'
+ 11. end
+
+. 
+. program pop_mean_ci, rclass
+  1.         syntax, lrv(real)
+  2.         qui sum y, meanonly
+  3.         local mean = r(mean)
+  4.     local T = _N
+  5.         scalar cil = `mean' - sqrt(`lrv'/`T') * invnormal(0.975)
+  6.         scalar ciu = `mean' + sqrt(`lrv'/`T') * invnormal(0.975)
+  7.         di "Population mean CI (normal):"
+  8.         di "[" cil ", " ciu "]"
+  9.         return scalar cil = cil
+ 10.         return scalar ciu = ciu
+ 11. end
+
+. 
+. program pop_mean_ci_t, rclass
+  1.         syntax, lrv(real) n(int)
+  2.         qui sum y, meanonly
+  3.         local mean = r(mean)
+  4.     local T = _N
+  5.         scalar cil = `mean' - sqrt(`lrv'/`T') * invt(`=2*`n'', 0.975)
+  6.         scalar ciu = `mean' + sqrt(`lrv'/`T') * invt(`=2*`n'', 0.975)
+  7.         di "Population mean CI (t-dist):"
+  8.         di "[" cil ", " ciu "]"
+  9.         return scalar cil = cil
+ 10.         return scalar ciu = ciu
+ 11. end
+
+. 
+. 
+. program parametric_lrv, rclass
+  1.         syntax, lags(int)
+  2.         reg y L(1/`lags').y
+  3.         scalar sigma2 = e(rmse)^2
+  4.         mat b = r(table)["b", 1..`lags']
+  5.         matrix phis = b * J(`lags', 1, 1)
+  6.         scalar denom = (1 - phis[1, 1])^2
+  7.         scalar w2 = sigma2 / denom
+  8.         di "Long run variance (parametric) is"
+  9.         di w2
+ 10.         return scalar w2 = w2
+ 11. end
+
+. 
+. program newey_west
+  1.         nw_wt y
+  2.         scalar w2 = r(w2)
+  3.         di "Long run variance (NW) is"
+  4.         di w2
+  5. end
+
+. 
+. program prew_ar1, rclass
+  1.         reg y L.y
+  2.         scalar rho = _b[L.y]
+  3.         predict u, resid
+  4.         nw_wt u
+  5.         di r(w2)
+  6.         scalar w2 = r(w2) / (1 - rho)^2
+  7.         di "Long run variance (pre-whitening) is"
+  8.         di w2
+  9.         return scalar w2 = w2
+ 10. end
+
+. 
+. program nw_wt, rclass
+  1.         syntax varname
+  2.         local u `varlist'
+  3.         local T = _N
+  4.         scalar bT = 0.75 * `T'^(1/3)
+  5.         scalar w2 = 0
+  6.         forvalues k = 0/`=`T'-1' {
+  7.                 cap corr `u' L`k'.`u', cov
+  8.                 scalar gamma_`k' = r(cov_12)
+  9.                 if gamma_`k' == . scalar gamma_`k' = 0
+ 10.                 if `k' == 0 scalar w2 = w2 + gamma_`k' * max((1 - `k'/bT),
+>  0)
+ 11.                 else scalar w2 = w2 + 2 * gamma_`k' * max((1 - `k'/bT), 0)
+ 12.         }
+ 13.         return scalar w2 = w2
+ 14. end
+
+. 
+. program pergram_lwr, rclass
+  1.         syntax, first(int)
+  2.         local T = _N
+  3.         tempvar t
+  4.         gen `t' = _n
+  5.         foreach s in cos sin {
+  6.                 matrix Z_`s' = J(1, `T', .)
+  7.         }
+  8.         scalar w2 = 0
+  9.         forval l = 1/`first' {
+ 10.                 gen Z_cos = cos(2 * c(pi) * `l' * (`t' - 1) / `T') * y
+ 11.                 gen Z_sin = sin(2 * c(pi) * `l' * (`t' - 1) / `T') * y
+ 12.                 foreach s in cos sin {
+ 13.                         qui sum Z_`s'
+ 14.                         local sum = r(sum)
+ 15.                         matrix Z_`s'[1, `l'] = sqrt(2/`T') * `sum'
+ 16.                         drop Z_`s'
+ 17.                 }
+ 18.                 scalar w2 = w2 + (Z_cos[1, `l']^2 + Z_sin[1, `l']^2) / 2
+ 19.         }
+ 20.         di "Long run variance (first `first' coord of periodogram) is"
+ 21.         scalar w2 = w2 / `first'
+ 22.         di w2
+ 23.         return scalar w2 = w2
+ 24. end
+
+. 
+. 
+. * Execute
+. main
+(encoding automatically selected: ISO-8859-2)
+(2 vars, 481 obs)
+
+Time variable: t, 1982-01 to 2022-01
+        Delta: 1 month
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+           y |        481    1.725509    1.112721       -.77       4.09
+
+      Source |       SS           df       MS      Number of obs   =       469
+-------------+----------------------------------   F(12, 456)      =    515.84
+       Model |  536.899539        12  44.7416283   Prob > F        =    0.0000
+    Residual |  39.5514037       456  .086735534   R-squared       =    0.9314
+-------------+----------------------------------   Adj R-squared   =    0.9296
+       Total |  576.450943       468  1.23173278   Root MSE        =    .29451
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           y |
+         L1. |   1.041644   .0468049    22.26   0.000     .9496636    1.133624
+         L2. |  -.1703035   .0675726    -2.52   0.012    -.3030959   -.0375112
+         L3. |   .1259968   .0677454     1.86   0.064    -.0071351    .2591287
+         L4. |   .0277538   .0674665     0.41   0.681    -.1048299    .1603375
+         L5. |  -.0369871   .0672833    -0.55   0.583     -.169211    .0952367
+         L6. |   .0667981   .0664622     1.01   0.315    -.0638121    .1974083
+         L7. |  -.0956168   .0637694    -1.50   0.134    -.2209351    .0297014
+         L8. |   .0682324   .0627346     1.09   0.277    -.0550523    .1915171
+         L9. |  -.0528256   .0626635    -0.84   0.400    -.1759706    .0703194
+        L10. |  -.0466938    .061952    -0.75   0.451    -.1684406     .075053
+        L11. |   .0327338   .0612605     0.53   0.593     -.087654    .1531217
+        L12. |  -.0142661   .0423833    -0.34   0.737    -.0975568    .0690247
+             |
+       _cons |    .091426   .0277505     3.29   0.001     .0368911    .1459608
+------------------------------------------------------------------------------
+Long run variance (parametric) is
+30.264299
+Population mean CI (normal):
+[1.2338765, 2.2171422]
+Long run variance (NW) is
+6.6976116
+Population mean CI (normal):
+[1.4942307, 1.956788]
+
+      Source |       SS           df       MS      Number of obs   =       480
+-------------+----------------------------------   F(1, 478)       =   5154.21
+       Model |  543.466694         1  543.466694   Prob > F        =    0.0000
+    Residual |  50.4009785       478  .105441378   R-squared       =    0.9151
+-------------+----------------------------------   Adj R-squared   =    0.9150
+       Total |  593.867672       479  1.23980725   Root MSE        =    .32472
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           y |
+         L1. |    .956287   .0133201    71.79   0.000     .9301138    .9824602
+             |
+       _cons |   .0765038    .027352     2.80   0.005     .0227589    .1302488
+------------------------------------------------------------------------------
+(1 missing value generated)
+.11472242
+Long run variance (pre-whitening) is
+60.038137
+Population mean CI (normal):
+[1.0330582, 2.4179605]
+Long run variance (first 10 coord of periodogram) is
+23.355317
+Population mean CI (normal):
+[1.293624, 2.1573947]
+Long run variance (first 3 coord of periodogram) is
+11.703674
+Population mean CI (t-dist):
+[1.3438228, 2.1071959]
+
+. 
+end of do-file

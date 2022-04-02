@@ -1,0 +1,191 @@
+
+  ___  ____  ____  ____  ____ ©
+ /__    /   ____/   /   ____/      17.0
+___/   /   /___/   /   /___/       SE—Standard Edition
+
+ Statistics and Data Science       Copyright 1985-2021 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-STATA-PC        https://www.stata.com
+                                   979-696-4600        stata@stata.com
+
+Stata license: Unlimited-user , expiring 19 Feb 2023
+Serial number: 401709301093
+  Licensed to: Yuci Zhou
+               Princeton University
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. Maximum number of variables is set to 5,000; see help set_maxvar.
+
+. do "params.do" 
+
+. clear all
+
+. cap mkdir ../output/
+
+. 
+. program main
+  1.     load_data
+  2.     params y
+  3.     local theta = r(theta)
+  4.     local sigma2 = r(sigma2)
+  5.     save_estimates, sigma2(`sigma2') theta(`theta') saveas(params)
+  6.     forecast y, theta(`theta') gen(f_y) until(2022q4)
+  7.     gen f_pi = .
+  8.     replace f_pi = pi in 2
+  9.     replace f_pi = L.pi + f_y if _n > 2
+ 10.     replace f_pi = L.f_pi + f_y if mi(f_pi)
+ 11.     keep t y f_y pi f_pi
+ 12.     save ../output/forecast, replace
+ 13. end
+
+. 
+. program load_data
+  1.     import delimited ../raw/JCXFE.csv, varnames(1) clear
+  2.     gen t = qofd(date(date, "MDY"))
+  3.     format t %tqccYY!Qq
+  4.     tsset t
+  5.     rename jcxfe p
+  6.     gen pi = 400 * log(p / L.p)
+  7.     gen y = pi - L.pi
+  8.     export delimited using ../output/jcxfe.csv, replace
+  9. end
+
+. 
+. program params, rclass
+  1.     syntax anything(name=y)
+  2.     quietly {
+  3.         sum `y'
+  4.         scalar g0 = r(Var)
+  5.         corr `y' L.`y', cov
+  6.         scalar g1 = r(cov_12)
+  7.     }
+  8.     di "Autocovariances"
+  9.     di "gamma(0): " g0
+ 10.     di "gamma(1): " g1
+ 11. 
+.     /*
+>     gamma(0) = (1 + \theta^2) * sigma^2
+>     gamma(1) = -theta * sigma^2
+>     Use these to obtain MA(1) params
+>     */
+.     scalar n = -g0 / g1
+ 12.     scalar theta = (- sqrt(n^2 - 4) + n) / 2
+ 13.     scalar sigma2 = -g1 / theta
+ 14.     di _newline "MA(1) estimates"
+ 15.     di "Theta: " theta
+ 16.     di "sigma_e^2: " sigma2
+ 17. 
+.     foreach s in g0 g1 theta sigma2 {
+ 18.         return scalar `s' = `s'
+ 19.     }
+ 20. end
+
+. 
+. program forecast
+  1.     syntax anything(name=y), ///
+>         theta(real) ///
+>         gen(str) until(str)
+  2.     local f_y `gen'
+  3.     tempvar thetap
+  4.     gen `thetap' = .
+  5. 
+.     gen `f_y' = .
+  6.     local T = _N
+  7.     tsappend, last(`until') tsfmt(tq)
+  8.     forval t = 3/`T' {
+  9.         if mod(`t', 100) == 0 di "t = `t'"
+ 10.         qui {
+ 11.             mkmat y if _n <= `t', matrix(y) nomissing
+ 12.             replace `thetap' = theta^(rowsof(y) + 1 - _n)
+ 13.             mkmat `thetap', matrix(thetap)
+ 14.             mkmat y if _n <= `t', matrix(y) nomissing
+ 15.             matrix yhat = (thetap[1..`=rowsof(y)', 1]' * - y)
+ 16.             scalar yhat = yhat[1, 1]
+ 17.             replace `f_y' = yhat in `=`t'+1'
+ 18.             if `t' == 10 {
+ 19.                 noisily {
+ 20.                     mat list y
+ 21.                     mat test = thetap[1..`=rowsof(y)', 1]
+ 22.                     mat list test
+ 23.                     di "Theta^t:"
+ 24.                     di theta^`=rowsof(y)'
+ 25.                 }
+ 26.             }
+ 27.         }
+ 28.     }
+ 29.     replace `f_y' = - `theta' * L.`f_y' if mi(`f_y')
+ 30.     label var `f_y' "Forecast value of `y'"
+ 31. end
+
+. 
+. program save_estimates
+  1.     syntax, sigma2(real) theta(real) saveas(str)
+  2.     preserve
+  3.     clear
+  4.     set obs 1
+  5.     gen sigma2 = `sigma2'
+  6.     gen theta = `theta'
+  7.     export delimited using ../output/`saveas'.csv, replace
+  8. end
+
+. 
+. * Execute
+. main
+(encoding automatically selected: ISO-8859-2)
+(2 vars, 252 obs)
+
+Time variable: t, 1959Q1 to 2021Q4
+        Delta: 1 quarter
+(1 missing value generated)
+(2 missing values generated)
+file ../output/jcxfe.csv saved
+Autocovariances
+gamma(0): .8785683
+gamma(1): -.30900533
+
+MA(1) estimates
+Theta: .41117814
+sigma_e^2: .75151206
+Number of observations (_N) was 0, now 1.
+file ../output/params.csv saved
+(252 missing values generated)
+(252 missing values generated)
+
+y[8,1]
+             y
+r1   .53335547
+r2  -.34675121
+r3  -1.0673556
+r4   .27663362
+r5   .04075778
+r6  -.26116586
+r7  -.60584056
+r8   .59937251
+
+test[8,1]
+     __000000
+r1  .00081703
+r2  .00198706
+r3  .00483259
+r4  .01175304
+r5  .02858381
+r6  .06951685
+r7  .16906747
+r8  .41117814
+Theta^t:
+.00081703
+t = 100
+t = 200
+(3 real changes made)
+(256 missing values generated)
+(1 real change made)
+(250 real changes made)
+(3 real changes made)
+file ../output/forecast.dta saved
+
+. 
+end of do-file

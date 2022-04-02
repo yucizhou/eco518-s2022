@@ -1,0 +1,212 @@
+
+  ___  ____  ____  ____  ____ ©
+ /__    /   ____/   /   ____/      17.0
+___/   /   /___/   /   /___/       SE—Standard Edition
+
+ Statistics and Data Science       Copyright 1985-2021 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-STATA-PC        https://www.stata.com
+                                   979-696-4600        stata@stata.com
+
+Stata license: Unlimited-user , expiring 19 Feb 2023
+Serial number: 401709301093
+  Licensed to: Yuci Zhou
+               Princeton University
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. Maximum number of variables is set to 5,000; see help set_maxvar.
+
+. do "prob5.do" 
+
+. clear all
+
+. set scheme Modern
+
+. 
+. program main        
+  1.         prep_data
+  2.         ar_coefs x, ar(4) estim_save(gdpc96)
+  3.         matrix phis = r(table)
+  4.         local s2 = r(s2)
+  5.         gen_forecast, last(2022q4) estim(gdpc96)
+  6.         sdensity, phis(phis) ar(4) s2(`s2') saveas(gdpc96_sdensity)
+  7.         esttab gdpc96 using ../output/gdpc96.tex, label noisily wide varla
+> bels(L.x "$ x_{t-1}$" L2.x "$ x_{t-2}$" L3.x "$ x_{t-3}$" L4.x "$ x_{t-4}$" _
+> cons "Constant") mtitles("$ x_t$") booktabs  substitute(_ _) nofix replace
+  8. end
+
+. 
+. program prep_data
+  1.         import delimited "../raw/Real_GDP.csv", clear
+  2.         gen date_mdy = date(date, "MDY")
+  3.         gen quarter = qofd(date_mdy)
+  4.         format quarter %tqccYY!Qq
+  5.         tsset quarter
+  6.         gen x = 400 * log(gdp/L.gdp)
+  7. end
+
+. 
+. program ar_coefs, rclass
+  1.         syntax anything(name=x), ar(int) [estim_save(str)]
+  2.         forvalues i = 1/`ar' {
+  3.                 local lags `lags' L`i'.`x'
+  4.                 local phis `phis' phi`i'
+  5.         }
+  6.         reg `x' `lags'
+  7.         if !mi("`estim_save'") estimates store `estim_save'
+  8.         tempname table
+  9.         matrix `table' = r(table)["b", .]
+ 10.         matrix colnames `table' = `phis' cons
+ 11.         return matrix table = `table'
+ 12.         return scalar s2 = e(rmse)^2
+ 13.         
+. end
+
+. 
+. program gen_forecast
+  1.         syntax, last(str) estim(str) 
+  2.         tsappend, last(`last') tsfmt(tq)
+  3.         forecast create `estim'
+  4.         forecast estimates `estim'
+  5.         qui {
+  6.                 tsset 
+  7.                 local timevar = `r(timevar)'
+  8.         }
+  9.         
+.         forecast solve
+ 10.         twoway (line x quarter if !mi(x)) ///
+>                 (line f_x quarter if quarter >= `=tq(2021q4)'), ///
+>                 legend(off) xtitle(Quarter) ytitle(Real GDP Growth (Percentag
+> e Points, Annualized)) ///
+>                 xline(`=tq(2021q4)')
+ 11.         graph export ../output/`estim'_forecast_`last'.pdf, replace
+ 12. end
+
+. 
+. program sdensity
+  1.         syntax, phis(str) ar(int) s2(real) saveas(str)
+  2.         local phisquared = 0
+  3.         forvalues i = 1/`ar' {
+  4.                 local phi`i' = phis["b", "phi`i'"]
+  5.                 local phisquared = `phisquared' + (`phi`i'')^2
+  6.                 local lambdas `lambdas' - `phi`i'' * cos(`i' * x)
+  7.         }
+  8.         forvalues i = 1/`ar' {
+  9.                 di "i = `i'"
+ 10.                 forvalues j = `=`i'+1'/`ar' {
+ 11.                         di "j = `j'"
+ 12.                         local lambdas `lambdas' + `=`phi`i''* `phi`j'' ' *
+>  cos(`=`j'-`i'' * x)
+ 13.                 }
+ 14.         }
+ 15.         
+.         di `" y = `s2' * (1 + `phisquared'  + 2 * (`lambdas'))^(-1)  / 2 /c(p
+> i) , range(0 `=c(pi)')"'
+ 16.         twoway (function y = `s2' * (1 + `phisquared'  + 2 * (`lambdas'))^
+> (-1)  / 2 / c(pi) , range(0 `=c(pi)') ), ///
+>                 xtitle("{&lambda}") ytitle("{it:f} ({&lambda})") ///
+>                 xlabel(0 `=c(pi)/4' "{&pi}/4" `=c(pi)/2' "{&pi}/2" `=3*c(pi)/
+> 4' "3{&pi}/4" `=c(pi)' "{&pi}")
+ 17.         graph export ../output/`saveas'.pdf, replace
+ 18. end
+
+. 
+. 
+. * Execute
+. main
+(encoding automatically selected: ISO-8859-2)
+(2 vars, 300 obs)
+
+Time variable: quarter, 1947Q1 to 2021Q4
+        Delta: 1 quarter
+(1 missing value generated)
+
+      Source |       SS           df       MS      Number of obs   =       295
+-------------+----------------------------------   F(4, 290)       =      2.56
+       Model |  217.345745         4  54.3364363   Prob > F        =    0.0388
+    Residual |  6155.35515       290  21.2253626   R-squared       =    0.0341
+-------------+----------------------------------   Adj R-squared   =    0.0208
+       Total |  6372.70089       294  21.6758534   Root MSE        =    4.6071
+
+------------------------------------------------------------------------------
+           x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           x |
+         L1. |   .1071662   .0585396     1.83   0.068    -.0080502    .2223825
+         L2. |    .124246   .0588192     2.11   0.036     .0084793    .2400126
+         L3. |  -.0148397   .0588119    -0.25   0.801     -.130592    .1009125
+         L4. |  -.0816174   .0584315    -1.40   0.164     -.196621    .0333861
+             |
+       _cons |   2.634737   .4081944     6.45   0.000     1.831338    3.438137
+------------------------------------------------------------------------------
+  Forecast model gdpc96 started.
+  Added estimation results from regress.
+  Forecast model gdpc96 now contains 1 endogenous variable.
+
+Computing dynamic forecasts for model gdpc96.
+---------------------------------------------
+Starting period:  2022Q1
+Ending period:    2022Q4
+Forecast prefix:  f_
+
+2022Q1:  ...............
+2022Q2:  .............
+2022Q3:  .............
+2022Q4:  ..............
+
+Forecast 1 variable spanning 4 periods.
+---------------------------------------
+file ../output/gdpc96_forecast_2022q4.pdf saved as PDF format
+i = 1
+j = 2
+j = 3
+j = 4
+i = 2
+j = 3
+j = 4
+i = 3
+j = 4
+i = 4
+ y = 21.2253625697646 * (1 + .0338032679492234  + 2 * (- .1071661761946831 * co
+> s(1 * x) - .1242459531309496 * cos(2 * x) - -.0148397379258188 * cos(3 * x) -
+>  -.0816174242298075 * cos(4 * x) + .0133149637047077 * cos(1 * x) + -.0015903
+> 179692412 * cos(2 * x) + -.0087466272655677 * cos(3 * x) + -.0018437773828069
+>  * cos(1 * x) + -.0101406346655255 * cos(2 * x) + .0012111811857507 * cos(1 *
+>  x)))^(-1)  / 2 /c(pi) , range(0 3.141592653589793)
+file ../output/gdpc96_sdensity.pdf saved as PDF format
+estout gdpc96 using `"../output/gdpc96.tex"' ,
+ cells(`"b(fmt(a3) star) t(fmt(2) par)"')
+ stats(N, fmt(%18.0g) labels(`"Observations"'))
+ starlevels(\sym{*} 0.05 \sym{**} 0.01 \sym{***} 0.001, label(" \(p<@\)"))
+ varwidth(20)
+ modelwidth(12)
+ delimiter(&)
+ end(\\)
+ prehead(`"{"' `"\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}"' `"\begin{tabular}
+> {l*{@E}{cc}}"' `"\toprule"')
+ posthead("\midrule")
+ prefoot("\midrule")
+ postfoot(`"\bottomrule"' `"\multicolumn{@span}{l}{\footnotesize \textit{t} sta
+> tistics in parentheses}\\"' `"\multicolumn{@span}{l}{\footnotesize @starlegen
+> d}\\"' `"\end{tabular}"' `"}"')
+ label
+ varlabels(L.x "$ x_{t-1}$" L2.x "$ x_{t-2}$" L3.x "$ x_{t-3}$" L4.x "$ x_{t-4}
+> $" _cons "Constant")
+ mlabels("$ x_t$", titles span prefix(\multicolumn{@span}{c}{) suffix(}))
+ numbers(\multicolumn{@span}{c}{( )})
+ collabels(none)
+ eqlabels(, begin("\midrule" "") nofirst)
+ substitute(_ _)
+ interaction(" $\times$ ")
+ notype
+ level(95)
+ style(esttab)
+ replace
+(output written to ../output/gdpc96.tex)
+
+. 
+end of do-file
