@@ -50,9 +50,10 @@ plot!(xlabel = L"h", ylabel = L"CV(h)")
 savefig("../output/kreg_cv.pdf")
 
 # # Use optimal bandwidth for kernal regression
-m = kreg(engel.share, engel.loginc, h = h_cv)
+xgrid = collect(5:0.01:9)
+_, m = kreg(engel.share, engel.loginc, h = h_cv, x0grid = xgrid)
 plot(engel.loginc, engel.share, seriestype = :scatter, markersize = 4)
-plot!(m, 5, 9, legend = false, linewidth = 3)
+plot!(xgrid, m, legend = false, linewidth = 3)
 plot!(xlabel = "Log income", ylabel = "Share of food expenditures")
 savefig("../output/kreg_scatter.pdf")
 
@@ -72,9 +73,9 @@ plot!([h_cv], [CV_min], seriestype = :scatter, markersize = 5, color = :goldenro
 plot!(xlabel = L"h", ylabel = L"CV(h)")
 savefig("../output/loclinear_cv.pdf")
 
-x0, m = locpoly(engel.share, engel.loginc, h = h_cv)
+_, m = locpoly(engel.share, engel.loginc, h = h_cv, x0grid = xgrid)
 plot(engel.loginc, engel.share, seriestype= :scatter)
-plot!(x0, m, legend = false, linewidth = 3)
+plot!(xgrid, m, legend = false, linewidth = 3)
 plot!(xlabel = "Log income", ylabel = "Share of food expenditures")
 savefig("../output/loclinear_scatter.pdf")
 
@@ -93,8 +94,8 @@ plot!([p_cv], [CV_min], seriestype = :scatter, markersize = 5, color = :goldenro
 plot!(xlabel = L"p", ylabel = L"CV(p)")
 savefig("../output/polyseries_cv.pdf")
 
-x0, m = polyseries(engel.share, engel.loginc, order = p_cv)
+_, m = polyseries(engel.share, engel.loginc, order = p_cv, x0grid = xgrid)
 plot(engel.loginc, engel.share, seriestype= :scatter)
-plot!(x0, m, legend = false, linewidth = 3)
+plot!(xgrid, m, legend = false, linewidth = 3)
 plot!(xlabel = "Log income", ylabel = "Share of food expenditures")
 savefig("../output/polyseries_scatter.pdf")

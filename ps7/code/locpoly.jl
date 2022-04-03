@@ -4,10 +4,12 @@ Inputs data Y, X, specifies bandwidth h, kernal, order of polynomial (default li
 Returns a discretized grid of x and m(x)
 =#
 function locpoly(Y::Vector{Float64}, X::Vector{Float64};
-        kernal = "normal", h::Real, bin = 0.01, order::Int = 1)
+        kernal = "normal", h::Real, x0grid = nothing,
+        bin = 0.01, order::Int = 1)
     N = length(X)
-    w = Array{Function, 1}(undef, N)
-    x0grid = collect(minimum(X):bin:maximum(X))
+    if isnothing(x0grid)
+        x0grid = collect(minimum(X):bin:maximum(X))
+    end
     mgrid = similar(x0grid)
     for (k, x0) in enumerate(x0grid)
         mgrid[k] = _locpoly_estim(Y, X, x0 = x0, kernal = kernal, h = h, p = order)

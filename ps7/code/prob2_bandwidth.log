@@ -1,0 +1,6 @@
+Choosing bandwidth for Y
+579.970881 seconds (157.28 M allocations: 2.423 GiB, 0.13% gc time, 0.13% compilation time)
+The optimal bandwidth for Y (log earnings) is 0.9.
+Choosing bandwidth for X
+577.167435 seconds (155.98 M allocations: 2.346 GiB, 0.14% gc time, 0.07% compilation time)
+The optimal bandwidth for X (education) is 0.74.

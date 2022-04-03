@@ -4,10 +4,11 @@ Inputs data Y, X, specifies order of polynomial (default linear)
 Returns a discretized grid of x and m(x)
 =#
 function polyseries(Y::Vector{Float64}, X::Vector{Float64};
-        bin = 0.01, order::Int = 1)
+        bin = 0.01, order::Int = 1, x0grid = nothing)
     N = length(X)
-    w = Array{Function, 1}(undef, N)
-    x0grid = collect(minimum(X):bin:maximum(X))
+    if isnothing(x0grid)
+        x0grid = collect(minimum(X):bin:maximum(X))
+    end
     mgrid = similar(x0grid)
     for (k, x0) in enumerate(x0grid)
         mgrid[k] = _polyseries_estim(Y, X, x0 = x0, p = order)
