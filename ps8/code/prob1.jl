@@ -18,6 +18,9 @@ mroz = DataFrame(CSV.File("../raw/mroz.csv"))
 Y = mroz[!, :part]
 X = Matrix(mroz[!, [:kidslt6, :age, :educ, :nwifeinc]])
 
+println("Coefficient/SE order: ")
+println("Intercept, :kidslt6, :age, :educ, :nwifeinc")
+
 β, se, V = myprobit(Y, X)
 V_test = V.robust[[2, 4], [2, 4]]
 

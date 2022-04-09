@@ -1,3 +1,5 @@
+Coefficient/SE order: 
+Intercept, :kidslt6, :age, :educ, :nwifeinc
 Log likelihood: -454.6604712452459
 Coefficients: [0.21532183503081523, -0.8803169405497139, -0.03141090242508577, 0.15839490026470682, -0.021306129879983468]
 Standard error: 
