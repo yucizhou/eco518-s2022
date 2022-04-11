@@ -53,7 +53,7 @@ function probitse(Y::Vector, X::Matrix, β::Vector)
     end
     H = 1/N * H
     Ω = 1/N * Ω
-    @info H Ω
+    @info "Matrices:" H Ω
     V_hess = -inv(H)
     V_score = inv(Ω)
     V_robust = inv(H) * Ω * inv(H)

@@ -3,7 +3,6 @@ using LinearAlgebra
 using ProgressMeter
 using Base.Threads
 using GLM
-using CovarianceMatrices
 
 function lineariv(Y::Vector, X::Union{Vector,Matrix}, Z::Union{Vector,Matrix};
     W = nothing, intercept = true)
@@ -35,7 +34,12 @@ function lineariv(Y::Vector, X::Union{Vector,Matrix}, Z::Union{Vector,Matrix};
     @info "Variance estimator: " V
     se = sqrt.(diag(V)/N)
     @info "SE: " se
-    return β, se, Ω
+
+    # Overidentification test
+    J = N * gn(β)' * inv(Ω) * gn(β)
+    pval_J = 1 - cdf(Chisq(r - k), J)
+    Jstat = (J = J, pval = pval_J)
+    return β, se, Ω, Jstat
 end
 
 function AndersonRubin(Y::Vector, X::Vector,
@@ -47,7 +51,6 @@ function AndersonRubin(Y::Vector, X::Vector,
         r = size(Z, 2)
     end
     ci_index = Array{Bool, 1}(undef, length(grid))
-    crit = cquantile(Chisq(size(Z, 2)), 0.05)
     # Progress bar
     mingrid = minimum(grid)
     maxgrid = maximum(grid)
@@ -62,11 +65,9 @@ function AndersonRubin(Y::Vector, X::Vector,
     for (i, b) in enumerate(grid)
         df[:, Symbol("ε")] = Y - b * X
         aftest =  lm(term(:ε) ~ sum(term.(Symbol.(names(df, Not(:ε))))), df)
-        γ = GLM.coef(aftest)
-        V = vcov(HC3(), aftest)
-        # Wald test
-        W = (R' * γ)' * inv(R' * V * R) * (R' * γ)
-        (W < crit) && (ci_index[i] = true)
+        aftest_const = lm(@formula(ε ~ 1), df)
+        results = ftest(aftest.model, aftest_const.model)
+        (results.pval[2] > 0.05) && (ci_index[i] = true)
         next!(p)
     end
     return grid, ci_index
