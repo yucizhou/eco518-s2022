@@ -1,0 +1,117 @@
+
+  ___  ____  ____  ____  ____ ©
+ /__    /   ____/   /   ____/      17.0
+___/   /   /___/   /   /___/       SE—Standard Edition
+
+ Statistics and Data Science       Copyright 1985-2021 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-STATA-PC        https://www.stata.com
+                                   979-696-4600        stata@stata.com
+
+Stata license: Unlimited-user , expiring 19 Feb 2023
+Serial number: 401709301093
+  Licensed to: Yuci Zhou
+               Princeton University
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. Maximum number of variables is set to 5,000; see help set_maxvar.
+
+. do prob2.do 
+
+. clear all
+
+. 
+. program main
+  1.     import delimited ../raw/heating.csv, clear
+  2.     gen id = _n
+  3.     reshape long @ic @oc, i(id) j(alt) string
+  4.     recode_alt
+  5.     cmset id alt
+  6.     cmclogit chosen ic oc, robust
+  7. end
+
+. 
+. program recode_alt
+  1.     replace alt = strtrim(alt)
+  2.     gen alt_cd = .
+  3.     replace alt_cd = 0 if alt == "heatpump",
+  4.     replace alt_cd = 1 if alt == "gascentral",
+  5.     replace alt_cd = 2 if alt ==  "electriccentral"
+  6.     replace alt_cd = 3 if alt == "gasroom"
+  7.     replace alt_cd = 4 if alt == "electricroom"
+  8.     gen chosen = alt_cd == choice
+  9. end
+
+. 
+. * Execute
+. main
+(encoding automatically selected: ISO-8859-2)
+(11 vars, 246 obs)
+(j = electriccentral electricroom gascentral gasroom heatpump)
+
+Data                               Wide   ->   Long
+-----------------------------------------------------------------------------
+Number of observations              246   ->   1,230       
+Number of variables                  12   ->   5           
+j variable (5 values)                     ->   alt
+xij variables:
+electriccentralic electricroomic ... heatpumpic->ic
+electriccentraloc electricroomoc ... heatpumpoc->oc
+-----------------------------------------------------------------------------
+(0 real changes made)
+(1,230 missing values generated)
+(246 real changes made)
+(246 real changes made)
+(246 real changes made)
+(246 real changes made)
+(246 real changes made)
+
+     Case ID variable: id
+Alternatives variable: alt
+
+Iteration 0:   log pseudolikelihood = -229.13834  
+Iteration 1:   log pseudolikelihood = -186.11428  
+Iteration 2:   log pseudolikelihood = -185.04562  
+Iteration 3:   log pseudolikelihood = -185.03818  
+Iteration 4:   log pseudolikelihood = -185.03818  
+
+Conditional logit choice model                 Number of obs      =      1,230
+Case ID variable: id                           Number of cases    =        246
+
+Alternatives variable: alt                     Alts per case: min =          5
+                                                              avg =        5.0
+                                                              max =          5
+
+                                                  Wald chi2(2)    =      45.31
+Log pseudolikelihood = -185.03818                 Prob > chi2     =     0.0000
+
+                                     (Std. err. adjusted for clustering on id)
+------------------------------------------------------------------------------
+             |               Robust
+      chosen | Coefficient  std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+alt          |
+          ic |  -.0026363   .0005534    -4.76   0.000    -.0037209   -.0015517
+          oc |  -.0217522   .0046489    -4.68   0.000     -.030864   -.0126405
+-------------+----------------------------------------------------------------
+electricce~l |  (base alternative)
+-------------+----------------------------------------------------------------
+electricroom |
+       _cons |   -11.5585   2.182876    -5.30   0.000    -15.83686   -7.280141
+-------------+----------------------------------------------------------------
+gascentral   |
+       _cons |   .5695971   .7930165     0.72   0.473    -.9846868    2.123881
+-------------+----------------------------------------------------------------
+gasroom      |
+       _cons |   2.736053   1.154975     2.37   0.018     .4723446    4.999762
+-------------+----------------------------------------------------------------
+heatpump     |
+       _cons |  -2.541618   1.171928    -2.17   0.030    -4.838555   -.2446808
+------------------------------------------------------------------------------
+
+. 
+end of do-file
